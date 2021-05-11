@@ -17,67 +17,81 @@ const db = knex({
 app.use(express.json());
 app.use(cors());
 
-app.get('/', (req, res) => {
-	//res.send(database.users);
-});
-
 app.post('/signin', (req, res) => {
-	// if (req.body.email === database.users[0].email && req.body.password === database.users[0].password) {
-	// 	res.json({
-	// 		id: database.users[0].id,
-	// 		name: database.users[0].name,
-	// 		email: database.users[0].email,
-	// 		entries: database.users[0].entries,
-	// 		joined: database.users[0].joined
-	// 	});
-	// } else {
-	// 	res.status(400).json('error loggin in');
-	// }
+	db.select('email', 'hash')
+		.where('email', '=', req.body.email)
+		.from('login')
+		.then((data) => {
+			const isValid = bcrypt.compareSync(req.body.password, data[0].hash);
+			if (isValid) {
+				return db
+					.select('*')
+					.from('users')
+					.where('email', '=', req.body.email)
+					.then((user) => {
+						res.json(user[0]);
+					})
+					.catch((err) => res.status(400).json('unable to get user'));
+			} else {
+				res.status(400).json('wrong credentials');
+			}
+		})
+		.catch((err) => res.status(400).json('wrong credentials'));
 });
 
 app.post('/register', (req, res) => {
 	const { email, name, password } = req.body;
-	// bcrypt.hash(password, 8, function (err, hash) {});
-	db('users')
-		.returning('*')
-		.insert({
-			name: name,
-			email: email,
-			joined: new Date()
+	const hash = bcrypt.hashSync(password, 8);
+	db.transaction((trx) => {
+		trx.insert({
+			hash: hash,
+			email: email
 		})
-		.then((user) => {
-			res.json(user[0]);
-		})
-		.catch((err) => res.status(400).json('unable to register'));
+			.into('login')
+			.returning('email')
+			.then((loginEmail) => {
+				console.log(loginEmail);
+				return trx('users')
+					.returning('*')
+					.insert({
+						name: name,
+						email: loginEmail[0],
+						joined: new Date()
+					})
+					.then((user) => {
+						res.json(user[0]);
+					});
+			})
+			.then(trx.commit)
+			.catch(trx.rollback);
+	}).catch((err) => res.status(400).json('unable to register'));
 });
 
 app.get('/profile/:id', (req, res) => {
 	const { id } = req.params;
-	let found = false;
-	// database.users.forEach((user) => {
-	// 	if (user.id === id) {
-	// 		found = true;
-	// 		return res.json(user);
-	// 	}
-	// });
-	if (!found) {
-		res.status(404).json('no such user');
-	}
+	db.select('*')
+		.from('users')
+		.where({ id })
+		.then((user) => {
+			if (user.length) {
+				res.json(user[0]);
+			} else {
+				res.status(400).json('Not found');
+			}
+		})
+		.catch((err) => res.status(400).json('Not found'));
 });
 
 app.put('/image', (req, res) => {
 	const { id } = req.body;
-	let found = false;
-	// database.users.forEach((user) => {
-	// 	if (user.id === id) {
-	// 		found = true;
-	// 		user.entries++;
-	// 		return res.json(user.entries);
-	// 	}
-	// });
-	if (!found) {
-		res.status(404).json('no such user');
-	}
+	db('users')
+		.where('id', '=', id)
+		.increment('entries', 1)
+		.returning('entries')
+		.then((entries) => {
+			res.json(entries[0]);
+		})
+		.catch((err) => res.status(400).json('unable to get entries!'));
 });
 
 // // Load hash from your password DB.
