@@ -1,6 +1,7 @@
 # SmartBrain - Backend
 
-Face recognition node server.  Technolgies: Node.js, Bcrypt.js, Express.js, Knex.js, Cors, PostgreSQL, Clarifai API
+Face recognition node server. <br/> 
+Technolgies: Node.js, Bcrypt.js, Express.js, Knex.js, Cors, PostgreSQL, Clarifai API
 
 ## Frontend 
 
